@@ -347,30 +347,24 @@ fn validate_url_accepts_https_with_host() {
 }
 
 #[test]
-fn validate_url_rejects_http() {
-    assert_eq!(
-        validate_url("http://api.example.com/v1"),
-        Err("URL must use HTTPS")
-    );
-    assert_eq!(
-        validate_url("http://example.com"),
-        Err("URL must use HTTPS")
-    );
+fn validate_url_accepts_http_with_public_host() {
+    assert!(validate_url("http://api.example.com/v1").is_ok());
+    assert!(validate_url("http://8.8.8.8/v1").is_ok());
 }
 
 #[test]
 fn validate_url_rejects_ftp_and_other_schemes() {
     assert_eq!(
         validate_url("ftp://files.example.com"),
-        Err("URL must use HTTPS")
+        Err("URL must use HTTP or HTTPS")
     );
     assert_eq!(
         validate_url("file:///etc/passwd"),
-        Err("URL must use HTTPS")
+        Err("URL must use HTTP or HTTPS")
     );
     assert_eq!(
         validate_url("ws://socket.example.com"),
-        Err("URL must use HTTPS")
+        Err("URL must use HTTP or HTTPS")
     );
 }
 
@@ -399,6 +393,7 @@ fn validate_url_allows_whitespace_only() {
 fn validate_url_rejects_localhost_and_private_ips() {
     let error = Err("URL must not use a local or private host");
     assert_eq!(validate_url("https://localhost:8080"), error);
+    assert_eq!(validate_url("http://localhost:8080"), error);
     assert_eq!(validate_url("https://127.0.0.1/v1"), error);
     assert_eq!(validate_url("https://0.0.0.0/v1"), error);
     assert_eq!(validate_url("https://10.0.0.1/v1"), error);
@@ -413,8 +408,8 @@ fn validate_url_rejects_localhost_and_private_ips() {
 }
 
 #[test]
-fn endpoint_form_valid_rejects_invalid_current_url() {
-    assert!(!is_endpoint_form_valid(
+fn endpoint_form_valid_accepts_public_http_url() {
+    assert!(is_endpoint_form_valid(
         "Endpoint",
         "http://api.example.com/v1",
         "key",

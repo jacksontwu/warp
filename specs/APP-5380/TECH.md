@@ -9,7 +9,7 @@ The implementation follows the file-backed execution-profile precedent in [`app/
 ### File-backed definition model
 Add `CustomEndpointDefinitions` as an ordered map from `CustomEndpointId` to `CustomEndpointDefinition`. Endpoint IDs accept non-empty ASCII alphanumeric, underscore, and hyphen characters. Definitions contain `name`, `base_url`, `schema`, and models containing `name`, optional `alias`, and explicit `config_key`.
 
-Implement `SettingsValue` and JSON schema generation through a file-safe representation. Reject the complete collection if endpoint IDs or config keys are duplicated, required strings are empty after trimming, no models are present, aliases are explicitly empty, schemas are unsupported, or URLs fail the shared public-HTTPS validator.
+Implement `SettingsValue` and JSON schema generation through a file-safe representation. Reject the complete collection if endpoint IDs or config keys are duplicated, required strings are empty after trimming, no models are present, aliases are explicitly empty, schemas are unsupported, or URLs fail the shared public HTTP/HTTPS validator. The GUI warns when HTTP is selected because credentials and conversation data are transmitted without encryption.
 
 Register the value on `AISettings` at `agents.custom_endpoints` with `SettingSurfaces::ALL`, global sync respecting the user setting, no privacy flag, and an empty default. GUI settings mode synchronizes definitions; TUI settings mode retains its existing local-file behavior.
 ### Credentials and effective endpoint coordinator

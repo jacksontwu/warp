@@ -53,3 +53,5 @@ Figma: none provided. The GUI retains its existing custom-endpoint editor, while
 19. Removing or renaming an endpoint definition immediately prevents its models and credential from being sent. Orphaned secure credentials may remain stored during the migration and rollback period but are never resolved or transmitted without a matching definition.
 
 20. Custom endpoints remain generic. OpenAI Chat Completions-compatible services such as OpenRouter work by supplying an ordinary endpoint definition; Warp does not infer providers from names or URLs.
+
+21. Public HTTP endpoints are accepted for services that cannot provide TLS. The GUI warns that HTTP exposes credentials and conversation data in transit. Local, private, and link-local hosts remain rejected for both HTTP and HTTPS.

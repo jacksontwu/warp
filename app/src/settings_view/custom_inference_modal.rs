@@ -1,4 +1,7 @@
-use ::ai::api_keys::{CustomEndpoint, CustomEndpointSchema, validate_custom_endpoint_url};
+use ::ai::api_keys::{
+    CustomEndpoint, CustomEndpointSchema, custom_endpoint_url_uses_insecure_http,
+    validate_custom_endpoint_url,
+};
 use warp_editor::editor::NavigationKey;
 use warpui::elements::{
     Border, ChildView, ClippedScrollStateHandle, ClippedScrollable, ConstrainedBox, Container,
@@ -151,7 +154,7 @@ impl CustomEndpointModal {
                 ..Default::default()
             };
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("Please include 'https://'", ctx);
+            editor.set_placeholder_text("Please include 'https://' or 'http://'", ctx);
             if let Some(ep) = endpoint {
                 editor.set_buffer_text(&ep.url, ctx);
             }
@@ -734,6 +737,8 @@ impl View for CustomEndpointModal {
 
         let is_valid = self.is_valid(app);
         let is_editing = self.editing_index.is_some();
+        let endpoint_url = self.endpoint_url_editor.as_ref(app).buffer_text(app);
+        let url_uses_insecure_http = custom_endpoint_url_uses_insecure_http(&endpoint_url);
 
         let label_font_family = appearance.ui_font_family();
         let label_text_color = theme.active_ui_text_color().into();
@@ -828,12 +833,28 @@ impl View for CustomEndpointModal {
                 )
                 .with_border(Border::all(1.).with_border_fill(url_border_fill))
                 .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)))
-                .with_margin_bottom(16.)
+                .with_margin_bottom(if url_uses_insecure_http { 4. } else { 16. })
                 .finish(),
                 ENDPOINT_URL_SCROLL_POSITION_ID,
             )
             .finish(),
         );
+        if url_uses_insecure_http {
+            column.add_child(
+                Container::new(
+                    Text::new(
+                        "HTTP sends your API key and conversation data without encryption. Use only with a trusted endpoint.",
+                        appearance.ui_font_family(),
+                        LABEL_FONT_SIZE,
+                    )
+                    .with_color(theme.ui_warning_color())
+                    .soft_wrap(true)
+                    .finish(),
+                )
+                .with_margin_bottom(16.)
+                .finish(),
+            );
+        }
 
         // API key
         column.add_child(

@@ -370,8 +370,8 @@ impl schemars::JsonSchema for CustomEndpointDefinitions {
 
 pub fn validate_custom_endpoint_url(value: &str) -> Result<(), &'static str> {
     let parsed = Url::parse(value).map_err(|_| "Invalid URL")?;
-    if parsed.scheme() != "https" {
-        return Err("URL must use HTTPS");
+    if !matches!(parsed.scheme(), "http" | "https") {
+        return Err("URL must use HTTP or HTTPS");
     }
     let Some(host) = parsed.host_str().filter(|host| !host.is_empty()) else {
         return Err("URL must include a host");
@@ -380,6 +380,10 @@ pub fn validate_custom_endpoint_url(value: &str) -> Result<(), &'static str> {
         return Err("URL must not use a local or private host");
     }
     Ok(())
+}
+
+pub fn custom_endpoint_url_uses_insecure_http(value: &str) -> bool {
+    Url::parse(value).is_ok_and(|url| url.scheme() == "http")
 }
 
 fn is_restricted_host(host: &str) -> bool {
