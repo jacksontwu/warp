@@ -80,6 +80,25 @@ To build and run Warp from source:
 
 See [AGENTS.md](AGENTS.md) for the full engineering guide, including coding style, testing, and platform-specific notes.
 
+### Local OpenAI-compatible model (TUI)
+
+The TUI can skip Warp login and send prompts directly to an OpenAI Chat Completions-compatible
+endpoint. Configure it through the environment:
+
+```bash
+export WARP_SKIP_LOGIN=1
+export WARP_LOCAL_LLM_API_KEY="your-api-key"
+export WARP_LOCAL_LLM_BASE_URL="http://host:port/v1"
+export WARP_LOCAL_LLM_MODEL="model-name"
+
+./warp-tui-oss                         # interactive TUI
+./warp-tui-oss -p "Reply with OK"      # one-shot prompt
+```
+
+`OPENAI_API_KEY`, `OPENAI_BASE_URL`, and `OPENAI_MODEL` are accepted as fallback names. Local
+mode preserves conversation history in the TUI, but does not use Warp's server-side tool
+orchestration. HTTP endpoints transmit the API key and conversation content without TLS.
+
 ## Joining the Team
 
 Interested in joining the team? See our [open roles](https://www.warp.dev/careers).

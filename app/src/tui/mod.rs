@@ -207,7 +207,10 @@ impl SingletonEntity for TuiLoginModel {}
 /// Registers the [`TuiLoginModel`], mounts the TUI immediately, and shows an
 /// explicit welcome screen when the user isn't already logged in.
 pub(crate) fn init(mount: TuiMountFn, ctx: &mut AppContext) {
-    let initial_phase = initial_login_phase(AuthStateProvider::as_ref(ctx).get());
+    let initial_phase = initial_login_phase(
+        AuthStateProvider::as_ref(ctx).get(),
+        crate::ai::agent::api::local_openai_mode_enabled(),
+    );
     let logged_in = matches!(&initial_phase, TuiLoginPhase::LoggedIn);
     ctx.add_singleton_model(move |_| TuiLoginModel {
         phase: initial_phase,
@@ -241,8 +244,8 @@ fn has_validated_identity(auth_state: &AuthState) -> bool {
     auth_state.is_logged_in() && auth_state.user_id().is_some()
 }
 
-fn initial_login_phase(auth_state: &AuthState) -> TuiLoginPhase {
-    if has_validated_identity(auth_state) {
+fn initial_login_phase(auth_state: &AuthState, skip_login: bool) -> TuiLoginPhase {
+    if skip_login || has_validated_identity(auth_state) {
         TuiLoginPhase::LoggedIn
     } else {
         TuiLoginPhase::SignedOutWelcome

@@ -2,6 +2,8 @@ pub(crate) mod convert_conversation;
 mod convert_from;
 mod convert_to;
 mod r#impl;
+#[cfg(not(target_family = "wasm"))]
+mod local_openai;
 
 use std::collections::HashSet;
 use std::path::Path;
@@ -39,6 +41,24 @@ use crate::server::telemetry::TelemetryEvent;
 use crate::settings::AISettings;
 use crate::terminal::safe_mode_settings::get_secret_obfuscation_mode;
 use crate::workspaces::user_workspaces::{TeamScope, UserWorkspaces};
+
+/// Whether the TUI should run without Warp authentication and send agent requests directly to an
+/// OpenAI Chat Completions-compatible endpoint.
+pub(crate) fn local_openai_mode_enabled() -> bool {
+    #[cfg(not(target_family = "wasm"))]
+    {
+        local_openai::mode_enabled()
+    }
+    #[cfg(target_family = "wasm")]
+    {
+        false
+    }
+}
+
+#[cfg(not(target_family = "wasm"))]
+pub(crate) fn run_local_openai_prompt(prompt: &str) -> anyhow::Result<String> {
+    local_openai::prompt_blocking(prompt)
+}
 
 /// Unique, server-generated conversation-scoped token to be roundtripped to the API when sending
 /// requests that follow-up within a given conversation.

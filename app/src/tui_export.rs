@@ -24,6 +24,11 @@ use warpui::SingletonEntity as _;
 
 pub use self::history::{TuiUpArrowHistoryItem, TuiUpArrowHistoryItemKind, tui_up_arrow_history};
 pub use crate::ai::agent::api::ServerConversationToken;
+
+#[cfg(not(target_family = "wasm"))]
+pub fn run_local_openai_prompt(prompt: &str) -> anyhow::Result<String> {
+    crate::ai::agent::api::run_local_openai_prompt(prompt)
+}
 pub use crate::ai::agent::conversation::{
     AIConversation, AIConversationAutoexecuteMode, AIConversationId, ConversationStatus,
     ConversationUsageTotals, TodoStatus,

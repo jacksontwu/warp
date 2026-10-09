@@ -62,6 +62,10 @@ struct TuiArgs {
     #[arg(long)]
     auto_approve: bool,
 
+    /// Send one prompt to the configured local OpenAI-compatible model and exit.
+    #[arg(short = 'p', long, value_name = "PROMPT")]
+    prompt: Option<String>,
+
     /// API key for non-interactive authentication.
     #[arg(long, env = "WARP_API_KEY")]
     api_key: Option<String>,
@@ -165,6 +169,10 @@ pub fn run() -> Result<()> {
     if let Some(TuiCommand::DumpSettingsSchema { output_path }) = args.command {
         warp::features::init_feature_flags();
         return warp::settings::dump_settings_schema(output_path.as_deref());
+    }
+    if let Some(prompt) = args.prompt {
+        println!("{}", warp::tui_export::run_local_openai_prompt(&prompt)?);
+        return Ok(());
     }
     let provider_api_key_command = if let Some(provider) = args.set_provider_api_key {
         if !provider.supports_pasted_api_key() {

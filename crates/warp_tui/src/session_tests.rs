@@ -151,9 +151,17 @@ fn accepts_startup_without_resume() {
 
     assert_eq!(args.resume, None);
     assert!(!args.auto_approve);
+    assert_eq!(args.prompt, None);
     assert_eq!(args.api_key, None);
     assert_eq!(args.set_provider_api_key, None);
     assert_eq!(args.clear_provider_api_key, None);
+}
+
+#[test]
+fn prompt_short_flag_parses() {
+    let args = TuiArgs::try_parse_from(["warp", "-p", "reply with OK"]).unwrap();
+
+    assert_eq!(args.prompt.as_deref(), Some("reply with OK"));
 }
 
 #[test]

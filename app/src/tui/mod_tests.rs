@@ -36,7 +36,7 @@ fn credential_only_auth_stays_on_signed_out_welcome() {
 
     assert!(!has_validated_identity(&auth_state));
     assert!(matches!(
-        initial_login_phase(&auth_state),
+        initial_login_phase(&auth_state, false),
         TuiLoginPhase::SignedOutWelcome
     ));
 }
@@ -47,7 +47,7 @@ fn credentials_with_user_identity_start_logged_in() {
 
     assert!(has_validated_identity(&auth_state));
     assert!(matches!(
-        initial_login_phase(&auth_state),
+        initial_login_phase(&auth_state, false),
         TuiLoginPhase::LoggedIn
     ));
 }
@@ -58,8 +58,18 @@ fn missing_credentials_and_identity_start_signed_out() {
 
     assert!(!has_validated_identity(&auth_state));
     assert!(matches!(
-        initial_login_phase(&auth_state),
+        initial_login_phase(&auth_state, false),
         TuiLoginPhase::SignedOutWelcome
+    ));
+}
+
+#[test]
+fn local_openai_mode_starts_without_login() {
+    let auth_state = AuthState::new_logged_out_for_test();
+
+    assert!(matches!(
+        initial_login_phase(&auth_state, true),
+        TuiLoginPhase::LoggedIn
     ));
 }
 

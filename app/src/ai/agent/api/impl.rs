@@ -19,6 +19,11 @@ pub async fn generate_multi_agent_output(
     team_scope: RequestTeamScope,
     cancellation_rx: futures::channel::oneshot::Receiver<()>,
 ) -> Result<ResponseStream, ConvertToAPITypeError> {
+    #[cfg(not(target_family = "wasm"))]
+    if super::local_openai::mode_enabled() {
+        return Ok(super::local_openai::generate(params, cancellation_rx).await);
+    }
+
     let supported_tools = params
         .supported_tools_override
         .take()
