@@ -18158,6 +18158,7 @@ impl Workspace {
             return;
         }
         if self.auth_state.is_anonymous_or_logged_out()
+            && !crate::ai::agent::api::local_openai_mode_enabled()
             && workflow.as_workflow().is_agent_mode_workflow()
         {
             AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| {

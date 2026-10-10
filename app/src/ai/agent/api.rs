@@ -60,6 +60,30 @@ pub(crate) fn run_local_openai_prompt(prompt: &str) -> anyhow::Result<String> {
     local_openai::prompt_blocking(prompt)
 }
 
+#[cfg(not(target_family = "wasm"))]
+pub(crate) async fn generate_local_openai_commands(
+    prompt: &str,
+    execution_context: Option<&crate::ai_assistant::execution_context::WarpAiExecutionContext>,
+) -> anyhow::Result<Vec<crate::ai_assistant::AIGeneratedCommand>> {
+    local_openai::generate_commands(prompt, execution_context).await
+}
+
+#[cfg(not(target_family = "wasm"))]
+pub(crate) async fn generate_local_openai_dialogue(
+    transcript: &[crate::ai_assistant::utils::TranscriptPart],
+    prompt: &str,
+    execution_context: Option<&crate::ai_assistant::execution_context::WarpAiExecutionContext>,
+) -> anyhow::Result<String> {
+    local_openai::generate_dialogue(transcript, prompt, execution_context).await
+}
+
+#[cfg(not(target_family = "wasm"))]
+pub(crate) async fn generate_local_openai_command_metadata(
+    command: &str,
+) -> anyhow::Result<crate::drive::workflows::ai_assist::GeneratedCommandMetadata> {
+    local_openai::generate_command_metadata(command).await
+}
+
 /// Unique, server-generated conversation-scoped token to be roundtripped to the API when sending
 /// requests that follow-up within a given conversation.
 #[derive(Serialize, Debug, Clone, PartialEq, Eq, Hash)]

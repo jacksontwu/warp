@@ -519,6 +519,31 @@ impl PassiveSuggestionsModel {
         let block_context =
             BlockContext::from_completed_block(block_completed, &self.terminal_model);
 
+        if crate::ai::agent::api::local_openai_mode_enabled() {
+            if is_prompt_suggestions_enabled && !block_context.exit_code.was_successful() {
+                let prompt = format!(
+                    "The following terminal command failed. Diagnose the cause and propose a safe fix.\n\nCommand:\n{}\n\nExit code: {}\n\nOutput:\n{}",
+                    block_context.command,
+                    block_context.exit_code.value(),
+                    block_context.output,
+                );
+                let trigger =
+                    PassiveSuggestionTrigger::ShellCommandCompleted(ShellCommandCompletedTrigger {
+                        executed_shell_command: block_context,
+                        relevant_files: vec![],
+                    });
+                ctx.emit(PassiveSuggestionsEvent::NewPromptSuggestion {
+                    prompt,
+                    label: Some("Fix failed command".to_owned()),
+                    request_duration_ms: 0,
+                    trigger: Some(trigger),
+                    conversation_id,
+                    server_request_token: None,
+                });
+            }
+            return;
+        }
+
         // If passive code diffs are enabled, check for any files that were read.
         #[cfg(feature = "local_fs")]
         if is_passive_code_diffs_enabled
@@ -872,7 +897,8 @@ fn is_passive_code_diffs_enabled(ctx: &ModelContext<PassiveSuggestionsModel>) ->
 
 fn is_prompt_suggestions_enabled(ctx: &ModelContext<PassiveSuggestionsModel>) -> bool {
     AISettings::as_ref(ctx).is_prompt_suggestions_enabled(ctx)
-        && UserWorkspaces::as_ref(ctx).is_prompt_suggestions_toggleable()
+        && (crate::ai::agent::api::local_openai_mode_enabled()
+            || UserWorkspaces::as_ref(ctx).is_prompt_suggestions_toggleable())
 }
 
 /// Maximum total byte length of block text to scan for file paths when building passive

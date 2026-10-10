@@ -59,3 +59,5 @@ Figma: none provided. The GUI retains its existing custom-endpoint editor, while
 22. The GUI and standalone TUI support an explicit loginless local mode. When enabled through environment variables, it bypasses Warp authentication and sends user queries directly to an OpenAI Chat Completions-compatible endpoint without routing inference through Warp services.
 
 23. Loginless local mode supports the GUI, interactive TUI, and a one-shot TUI `-p`/`--prompt` command. It preserves text conversation history but does not advertise or emulate Warp's server-side tool orchestration.
+
+24. In GUI local mode, terminal natural-language detection is enabled without an account. Agent prompts, AI Command Search, legacy Ask AI dialogue, command metadata generation, and failed-command repair suggestions all use the configured OpenAI-compatible endpoint rather than Warp inference or quota services.

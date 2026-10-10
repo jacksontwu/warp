@@ -11,6 +11,10 @@ use warp_multi_agent_api as api;
 
 use super::convert_to::convert_input;
 use super::{RequestParams, ResponseStream};
+use crate::ai_assistant::AIGeneratedCommand;
+use crate::ai_assistant::execution_context::WarpAiExecutionContext;
+use crate::ai_assistant::utils::TranscriptPart;
+use crate::drive::workflows::ai_assist::{GeneratedArgument, GeneratedCommandMetadata};
 use crate::server::server_api::AIApiError;
 
 const SKIP_LOGIN_ENV: &str = "WARP_SKIP_LOGIN";
@@ -139,6 +143,198 @@ struct ChatMessage {
     reasoning_content: Option<String>,
 }
 
+#[derive(Debug, Deserialize, PartialEq, Eq)]
+struct GeneratedCommandsResponse {
+    commands: Vec<LocalGeneratedCommand>,
+}
+
+#[derive(Debug, Deserialize, PartialEq, Eq)]
+struct LocalGeneratedCommand {
+    command: String,
+    #[serde(default)]
+    description: String,
+}
+
+#[derive(Debug, Deserialize, PartialEq, Eq)]
+struct LocalGeneratedCommandMetadata {
+    command: String,
+    title: String,
+    description: String,
+    #[serde(default)]
+    arguments: Vec<LocalGeneratedArgument>,
+}
+
+#[derive(Debug, Deserialize, PartialEq, Eq)]
+struct LocalGeneratedArgument {
+    name: String,
+    #[serde(default)]
+    description: String,
+    #[serde(default)]
+    default_value: String,
+}
+
+async fn send_chat_request(
+    config: &LocalOpenAIConfig,
+    messages: Vec<Value>,
+) -> anyhow::Result<String> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(600))
+        .build()
+        .context("failed to initialize local LLM client")?;
+    let response = client
+        .post(&config.chat_completions_url)
+        .bearer_auth(&config.api_key)
+        .json(&ChatRequest {
+            model: config.model.clone(),
+            messages,
+            stream: false,
+        })
+        .send()
+        .await
+        .context("local LLM request failed")?;
+    let status = response.status();
+    let body = response
+        .text()
+        .await
+        .context("failed to read local LLM response")?;
+    if !status.is_success() {
+        return Err(anyhow!(
+            "local LLM returned HTTP {status}: {}",
+            error_message(&body)
+        ));
+    }
+    response_text(&body)
+}
+
+pub(super) async fn generate_commands(
+    prompt: &str,
+    execution_context: Option<&WarpAiExecutionContext>,
+) -> anyhow::Result<Vec<AIGeneratedCommand>> {
+    if prompt.trim().is_empty() {
+        return Err(anyhow!("local LLM command prompt must not be empty"));
+    }
+    let config = LocalOpenAIConfig::from_env()?;
+    let environment = execution_context
+        .and_then(WarpAiExecutionContext::to_json_string)
+        .unwrap_or_else(|| "unknown".to_owned());
+    let output = send_chat_request(
+        &config,
+        vec![
+            json!({
+                "role": "system",
+                "content": format!(
+                    "Translate the user's request into one or more shell commands for this environment: {environment}. Return only strict JSON with this schema: {{\"commands\":[{{\"command\":\"...\",\"description\":\"...\"}}]}}. Do not use Markdown fences."
+                ),
+            }),
+            json!({ "role": "user", "content": prompt }),
+        ],
+    )
+    .await?;
+
+    let commands = parse_generated_commands(&output)?;
+    if commands.is_empty() {
+        return Err(anyhow!("local LLM returned no generated commands"));
+    }
+    let commands = commands
+        .into_iter()
+        .filter_map(|command| {
+            let value = command.command.trim();
+            if value.is_empty() {
+                return None;
+            }
+            let description = if command.description.trim().is_empty() {
+                prompt.trim().to_owned()
+            } else {
+                command.description.trim().to_owned()
+            };
+            Some(AIGeneratedCommand::new(value.to_owned(), description))
+        })
+        .collect::<Vec<_>>();
+    if commands.is_empty() {
+        return Err(anyhow!("local LLM returned no usable generated commands"));
+    }
+    Ok(commands)
+}
+
+pub(super) async fn generate_dialogue(
+    transcript: &[TranscriptPart],
+    prompt: &str,
+    execution_context: Option<&WarpAiExecutionContext>,
+) -> anyhow::Result<String> {
+    if prompt.trim().is_empty() {
+        return Err(anyhow!("local LLM dialogue prompt must not be empty"));
+    }
+    let config = LocalOpenAIConfig::from_env()?;
+    let environment = execution_context
+        .and_then(WarpAiExecutionContext::to_json_string)
+        .unwrap_or_else(|| "unknown".to_owned());
+    let mut messages = vec![json!({
+        "role": "system",
+        "content": format!(
+            "You are a terminal assistant. Answer for this execution environment: {environment}. Give concise, actionable explanations and shell commands."
+        ),
+    })];
+    for part in transcript {
+        messages.push(json!({ "role": "user", "content": part.raw_user_prompt() }));
+        messages.push(json!({ "role": "assistant", "content": part.raw_assistant_answer() }));
+    }
+    messages.push(json!({ "role": "user", "content": prompt }));
+    send_chat_request(&config, messages).await
+}
+
+pub(super) async fn generate_command_metadata(
+    command: &str,
+) -> anyhow::Result<GeneratedCommandMetadata> {
+    if command.trim().is_empty() {
+        return Err(anyhow!("local LLM metadata command must not be empty"));
+    }
+    let config = LocalOpenAIConfig::from_env()?;
+    let output = send_chat_request(
+        &config,
+        vec![
+            json!({
+                "role": "system",
+                "content": "Describe and parameterize the shell command. Return only strict JSON with this schema: {\"command\":\"...\",\"title\":\"...\",\"description\":\"...\",\"arguments\":[{\"name\":\"...\",\"description\":\"...\",\"default_value\":\"...\"}]}. Do not use Markdown fences.",
+            }),
+            json!({ "role": "user", "content": command }),
+        ],
+    )
+    .await?;
+    let metadata = parse_json_response::<LocalGeneratedCommandMetadata>(&output)?;
+    if metadata.command.trim().is_empty() || metadata.title.trim().is_empty() {
+        return Err(anyhow!("local LLM returned incomplete command metadata"));
+    }
+    Ok(GeneratedCommandMetadata {
+        command: metadata.command,
+        title: metadata.title,
+        description: metadata.description,
+        arguments: metadata
+            .arguments
+            .into_iter()
+            .map(|argument| GeneratedArgument {
+                name: argument.name,
+                description: argument.description,
+                default_value: argument.default_value,
+            })
+            .collect(),
+    })
+}
+
+fn parse_generated_commands(output: &str) -> anyhow::Result<Vec<LocalGeneratedCommand>> {
+    Ok(parse_json_response::<GeneratedCommandsResponse>(output)?.commands)
+}
+
+fn parse_json_response<T: for<'de> Deserialize<'de>>(output: &str) -> anyhow::Result<T> {
+    let trimmed = output.trim();
+    let json = trimmed
+        .strip_prefix("```json")
+        .or_else(|| trimmed.strip_prefix("```"))
+        .and_then(|value| value.strip_suffix("```"))
+        .map(str::trim)
+        .unwrap_or(trimmed);
+    serde_json::from_str(json).context("local LLM returned invalid JSON")
+}
+
 pub(super) async fn generate(
     params: RequestParams,
     mut cancellation_rx: oneshot::Receiver<()>,
@@ -176,39 +372,15 @@ async fn generate_events(
             .map(|query| json!({ "role": "user", "content": query })),
     );
 
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(600))
-        .build()
-        .context("failed to initialize local LLM client")?;
-    let request = client
-        .post(&config.chat_completions_url)
-        .bearer_auth(&config.api_key)
-        .json(&ChatRequest {
-            model: config.model.clone(),
-            messages,
-            stream: false,
-        });
     let response = tokio::select! {
-        response = request.send() => response.context("local LLM request failed")?,
+        response = send_chat_request(&config, messages) => response?,
         _ = cancellation_rx => return Err(anyhow!("local LLM request cancelled")),
     };
-    let status = response.status();
-    let body = response
-        .text()
-        .await
-        .context("failed to read local LLM response")?;
-    if !status.is_success() {
-        return Err(anyhow!(
-            "local LLM returned HTTP {status}: {}",
-            error_message(&body)
-        ));
-    }
-    let output = response_text(&body)?;
 
     Ok(response_events(
         params,
         latest_queries,
-        output,
+        response,
         config.model,
     ))
 }

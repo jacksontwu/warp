@@ -2402,7 +2402,9 @@ impl AISettings {
     /// If the user has not explicitly set this setting, it defaults to the value of
     /// `ai_autodetection_enabled_internal`.
     pub fn is_nld_in_terminal_enabled(&self, app: &warpui::AppContext) -> bool {
-        self.is_any_ai_enabled(app) && *self.nld_in_terminal_enabled_internal
+        self.is_any_ai_enabled(app)
+            && (crate::ai::agent::api::local_openai_mode_enabled()
+                || *self.nld_in_terminal_enabled_internal)
     }
 
     pub fn is_memory_enabled(&self, app: &warpui::AppContext) -> bool {

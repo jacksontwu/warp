@@ -2045,6 +2045,9 @@ impl LLMPreferences {
         scope: &(impl TeamScope + ?Sized),
         ctx: &mut ModelContext<Self>,
     ) {
+        if crate::ai::agent::api::local_openai_mode_enabled() {
+            return;
+        }
         if AuthStateProvider::as_ref(ctx).get().is_logged_in() {
             self.refresh_authed_models(scope, ctx);
         } else {

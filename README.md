@@ -96,11 +96,15 @@ export WARP_LOCAL_LLM_MODEL="model-name"
 ```
 
 For the GUI, start `warp-oss` from the same environment. `WARP_SKIP_LOGIN=1` opens the terminal
-workspace directly and enables the Agent UI without a Warp account.
+workspace directly and enables the Agent UI without a Warp account. Terminal input automatically
+detects natural-language prompts, `#` command search uses the configured endpoint, and failed
+commands show a local "Fix failed command" suggestion that opens the Agent with command output as
+context.
 
 `OPENAI_API_KEY`, `OPENAI_BASE_URL`, and `OPENAI_MODEL` are accepted as fallback names. Local
-mode preserves text conversation history, but does not use Warp's server-side tool
-orchestration. HTTP endpoints transmit the API key and conversation content without TLS.
+mode preserves text conversation history and also backs the legacy Ask AI and command-metadata
+surfaces, but does not use Warp's server-side tool orchestration. HTTP endpoints transmit the API
+key and conversation content without TLS.
 
 ## Joining the Team
 

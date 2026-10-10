@@ -2007,9 +2007,23 @@ impl AIClient for ServerApi {
     async fn generate_commands_from_natural_language(
         &self,
         prompt: String,
-        // TODO: use relevant context from RequestContext and deprecate usage of ai_execution_context
-        _ai_execution_context: Option<WarpAiExecutionContext>,
+        ai_execution_context: Option<WarpAiExecutionContext>,
     ) -> Result<Vec<AIGeneratedCommand>, GenerateCommandsFromNaturalLanguageError> {
+        #[cfg(target_family = "wasm")]
+        let _ = &ai_execution_context;
+        #[cfg(not(target_family = "wasm"))]
+        if crate::ai::agent::api::local_openai_mode_enabled() {
+            return crate::ai::agent::api::generate_local_openai_commands(
+                &prompt,
+                ai_execution_context.as_ref(),
+            )
+            .await
+            .map_err(|error| {
+                log::warn!("Local LLM command generation failed: {error:#}");
+                GenerateCommandsFromNaturalLanguageError::Other
+            });
+        }
+
         let default_err = GenerateCommandsFromNaturalLanguageError::Other;
 
         let variables = GenerateCommandsVariables {
@@ -2046,9 +2060,26 @@ impl AIClient for ServerApi {
         &self,
         transcript: Vec<TranscriptPart>,
         prompt: String,
-        // TODO: use relevant context from RequestContext and deprecate usage of ai_execution_context
-        _ai_execution_context: Option<WarpAiExecutionContext>,
+        ai_execution_context: Option<WarpAiExecutionContext>,
     ) -> anyhow::Result<GenerateDialogueResult> {
+        #[cfg(target_family = "wasm")]
+        let _ = &ai_execution_context;
+        #[cfg(not(target_family = "wasm"))]
+        if crate::ai::agent::api::local_openai_mode_enabled() {
+            let answer = crate::ai::agent::api::generate_local_openai_dialogue(
+                &transcript,
+                &prompt,
+                ai_execution_context.as_ref(),
+            )
+            .await?;
+            return Ok(GenerateDialogueResult::Success {
+                answer,
+                truncated: false,
+                request_limit_info: crate::ai::RequestLimitInfo::default(),
+                transcript_summarized: false,
+            });
+        }
+
         let graphql_transcript: Vec<TranscriptPartGraphql> = transcript
             .into_iter()
             .map(|part| TranscriptPartGraphql {
@@ -2101,6 +2132,16 @@ impl AIClient for ServerApi {
         &self,
         command: String,
     ) -> Result<GeneratedCommandMetadata, GeneratedCommandMetadataError> {
+        #[cfg(not(target_family = "wasm"))]
+        if crate::ai::agent::api::local_openai_mode_enabled() {
+            return crate::ai::agent::api::generate_local_openai_command_metadata(&command)
+                .await
+                .map_err(|error| {
+                    log::warn!("Local LLM command metadata generation failed: {error:#}");
+                    GeneratedCommandMetadataError::Other
+                });
+        }
+
         let default_err = GeneratedCommandMetadataError::Other;
         let variables = GenerateMetadataForCommandVariables {
             input: GenerateMetadataForCommandInput { command },

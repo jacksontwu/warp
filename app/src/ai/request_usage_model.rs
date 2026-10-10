@@ -304,6 +304,10 @@ impl AIRequestUsageModel {
         ctx: &mut ModelContext<Self>,
     ) -> Receiver<Option<usize>> {
         let (sender, receiver) = oneshot::channel();
+        if crate::ai::agent::api::local_openai_mode_enabled() {
+            let _ = sender.send(Some(usize::MAX));
+            return receiver;
+        }
         if !AuthStateProvider::as_ref(ctx).get().is_logged_in() {
             let _ = sender.send(None);
             return receiver;
@@ -518,6 +522,9 @@ impl AIRequestUsageModel {
     /// Returns `true` if the user can start an interactive AI request.
     /// Prefers the server decision when present; otherwise uses the pre-fetch fallback.
     pub fn has_any_ai_remaining<S: TeamScope + ?Sized>(&self, scope: &S, ctx: &AppContext) -> bool {
+        if crate::ai::agent::api::local_openai_mode_enabled() {
+            return true;
+        }
         if let Some(availability) = self.server_availability.latest {
             return Self::server_availability_permits_ai(availability, scope, ctx);
         }
@@ -645,7 +652,11 @@ impl AIRequestUsageModel {
     }
 
     pub fn request_limit(&self) -> usize {
-        self.request_limit_info.limit
+        if crate::ai::agent::api::local_openai_mode_enabled() {
+            usize::MAX
+        } else {
+            self.request_limit_info.limit
+        }
     }
 
     /// Returns the number of indices the user's tier allows them to create and the number of files

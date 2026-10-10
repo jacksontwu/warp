@@ -98,3 +98,38 @@ fn response_contains_init_task_messages_and_done() {
         Some(api::response_event::Type::Finished(_))
     ));
 }
+
+#[test]
+fn parses_generated_commands_from_plain_and_fenced_json() {
+    let expected = vec![LocalGeneratedCommand {
+        command: "git status".to_owned(),
+        description: "Show repository status".to_owned(),
+    }];
+    let json = r#"{"commands":[{"command":"git status","description":"Show repository status"}]}"#;
+    let fenced_json = format!("```json\n{json}\n```");
+
+    assert_eq!(parse_generated_commands(json).unwrap(), expected);
+    assert_eq!(parse_generated_commands(&fenced_json).unwrap(), expected);
+}
+
+#[test]
+fn parses_generated_command_metadata() {
+    let metadata = parse_json_response::<LocalGeneratedCommandMetadata>(
+        r#"{
+            "command": "curl {{url}}",
+            "title": "Fetch URL",
+            "description": "Download a URL",
+            "arguments": [{
+                "name": "url",
+                "description": "URL to fetch",
+                "default_value": "https://example.com"
+            }]
+        }"#,
+    )
+    .unwrap();
+
+    assert_eq!(metadata.command, "curl {{url}}");
+    assert_eq!(metadata.title, "Fetch URL");
+    assert_eq!(metadata.arguments.len(), 1);
+    assert_eq!(metadata.arguments[0].name, "url");
+}

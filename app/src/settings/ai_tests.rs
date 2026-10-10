@@ -1011,6 +1011,7 @@ fn local_openai_mode_enables_ai_without_login() {
 
         AISettings::handle(&app).read(&app, |settings, ctx| {
             assert!(settings.is_any_ai_enabled(ctx));
+            assert!(settings.is_nld_in_terminal_enabled(ctx));
         });
     });
 

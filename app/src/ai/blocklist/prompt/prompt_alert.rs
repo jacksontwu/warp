@@ -255,6 +255,10 @@ impl PromptAlertView {
     }
 
     pub fn determine_state<S: TeamScope + ?Sized>(scope: &S, app: &AppContext) -> PromptAlertState {
+        if crate::ai::agent::api::local_openai_mode_enabled() {
+            return PromptAlertState::NoAlert;
+        }
+
         // First, if the user is offline, no AI features will work.
         if !NetworkStatus::as_ref(app).is_online() {
             return PromptAlertState::NoConnection;
