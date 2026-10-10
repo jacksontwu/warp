@@ -29,6 +29,10 @@ jobs:
         with:
           lfs: true
 
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          key: cross-gui-windows-x64
+
       - name: Configure build tools
         shell: pwsh
         run: |
@@ -81,7 +85,8 @@ jobs:
           New-Item -ItemType Directory -Path (Join-Path $stage 'resources') -Force | Out-Null
           Copy-Item 'app\assets\windows\x64\OpenConsole.exe' (Join-Path $stage 'x64')
           Copy-Item 'resources\bundled' (Join-Path $stage 'resources\bundled') -Recurse
-          Copy-Item 'LICENSE' $stage
+          Copy-Item 'LICENSE-AGPL' $stage
+          Copy-Item 'LICENSE-MIT' $stage
           Copy-Item 'app\assets\windows\LICENSE-DXC' $stage
           Copy-Item 'app\assets\windows\LICENSE-WINDOWS-TERMINAL' $stage
 
@@ -105,6 +110,10 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           lfs: true
+
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          key: cross-gui-macos-arm64
 
       - name: Configure build tools
         shell: bash
@@ -147,7 +156,7 @@ jobs:
           plutil -insert MainAppBundleIdentifier -string dev.warp.WarpOss \
             "$app_bundle/Contents/PlugIns/WarpDockTilePlugin.docktileplugin/Contents/Info.plist"
           ./script/prepare_bundled_resources "$resources" oss
-          cp LICENSE "$resources/LICENSE"
+          cp LICENSE-AGPL LICENSE-MIT "$resources/"
           /usr/bin/strip -x "$app_bundle/Contents/MacOS/warp-oss"
           codesign --force --deep --sign - "$app_bundle"
           lipo -archs "$app_bundle/Contents/MacOS/warp-oss" | grep -Fx arm64
