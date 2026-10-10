@@ -995,6 +995,32 @@ fn ai_autodetection_defaults_to_opt_in() {
 }
 
 #[test]
+#[serial_test::serial]
+fn local_openai_mode_enables_ai_without_login() {
+    let previous_skip_login = std::env::var_os("WARP_SKIP_LOGIN");
+    unsafe { std::env::set_var("WARP_SKIP_LOGIN", "1") };
+
+    App::test((), |mut app| async move {
+        initialize_settings_for_tests(&mut app);
+        add_ai_enablement_dependencies_for_test(&mut app);
+        app.update(|ctx| {
+            let auth_state = AuthStateProvider::as_ref(ctx).get();
+            auth_state.set_credentials(None);
+            auth_state.set_user(None);
+        });
+
+        AISettings::handle(&app).read(&app, |settings, ctx| {
+            assert!(settings.is_any_ai_enabled(ctx));
+        });
+    });
+
+    match previous_skip_login {
+        Some(value) => unsafe { std::env::set_var("WARP_SKIP_LOGIN", value) },
+        None => unsafe { std::env::remove_var("WARP_SKIP_LOGIN") },
+    }
+}
+
+#[test]
 fn ai_autodetection_setting_can_be_toggled_on_and_off() {
     App::test((), |mut app| async move {
         initialize_settings_for_tests(&mut app);

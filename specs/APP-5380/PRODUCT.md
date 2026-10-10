@@ -56,6 +56,6 @@ Figma: none provided. The GUI retains its existing custom-endpoint editor, while
 
 21. Public HTTP endpoints are accepted for services that cannot provide TLS. The GUI warns that HTTP exposes credentials and conversation data in transit. Local, private, and link-local hosts remain rejected for both HTTP and HTTPS.
 
-22. The standalone TUI supports an explicit loginless local mode. When enabled through environment variables, it bypasses Warp authentication and sends user queries directly to an OpenAI Chat Completions-compatible endpoint without routing inference through Warp services.
+22. The GUI and standalone TUI support an explicit loginless local mode. When enabled through environment variables, it bypasses Warp authentication and sends user queries directly to an OpenAI Chat Completions-compatible endpoint without routing inference through Warp services.
 
-23. Loginless local mode supports both the interactive TUI and a one-shot `-p`/`--prompt` command. It preserves text conversation history but does not advertise or emulate Warp's server-side tool orchestration.
+23. Loginless local mode supports the GUI, interactive TUI, and a one-shot TUI `-p`/`--prompt` command. It preserves text conversation history but does not advertise or emulate Warp's server-side tool orchestration.

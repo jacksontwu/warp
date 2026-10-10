@@ -471,6 +471,46 @@ fn root_view_new_skips_onboarding_for_shared_session_cold_start() {
     });
 }
 
+#[test]
+#[serial_test::serial]
+fn root_view_new_enters_workspace_in_local_openai_mode() {
+    let previous_skip_login = std::env::var_os("WARP_SKIP_LOGIN");
+    unsafe { std::env::set_var("WARP_SKIP_LOGIN", "1") };
+
+    App::test((), |mut app| async move {
+        crate::workspace::view::tests::initialize_app(&mut app);
+        app.update(|ctx| {
+            let auth_state = AuthStateProvider::as_ref(ctx).get();
+            auth_state.set_credentials(None);
+            auth_state.set_user(None);
+        });
+
+        let global_resource_handles = GlobalResourceHandles::mock(&mut app);
+        let (_, root_view) = app.add_window(WindowStyle::NotStealFocus, |ctx| {
+            RootView::new(
+                global_resource_handles,
+                NewWorkspaceSource::Empty {
+                    previous_active_window: None,
+                    shell: None,
+                },
+                ctx,
+            )
+        });
+
+        app.read(|ctx| {
+            assert!(matches!(
+                root_view.as_ref(ctx).auth_onboarding_state,
+                AuthOnboardingState::Terminal(_)
+            ));
+        });
+    });
+
+    match previous_skip_login {
+        Some(value) => unsafe { std::env::set_var("WARP_SKIP_LOGIN", value) },
+        None => unsafe { std::env::remove_var("WARP_SKIP_LOGIN") },
+    }
+}
+
 fn pending_target(state: &AuthOnboardingState) -> Option<&AuthOnboardingTarget> {
     match state {
         AuthOnboardingState::Onboarding { target, .. }

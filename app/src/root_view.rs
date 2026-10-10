@@ -1926,7 +1926,9 @@ impl RootView {
             workspace_setting,
         };
 
-        let auth_onboarding_state = if auth_state.is_logged_in() {
+        let auth_onboarding_state = if auth_state.is_logged_in()
+            || crate::ai::agent::api::local_openai_mode_enabled()
+        {
             AuthOnboardingState::Terminal(workspace_args.create_workspace(ctx))
         } else {
             cfg_if! {

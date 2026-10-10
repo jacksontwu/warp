@@ -1,0 +1,194 @@
+name: Build Cross-Platform OSS GUI
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: GitHub release tag used to archive the packages
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cross-gui-${{ inputs.release_tag }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  GIT_RELEASE_TAG: ${{ inputs.release_tag }}
+
+jobs:
+  windows-x64:
+    name: Windows x64 GUI
+    runs-on: windows-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          lfs: true
+
+      - name: Configure build tools
+        shell: pwsh
+        run: |
+          git config --system core.longpaths true
+          rustup show active-toolchain
+          rustup target add x86_64-pc-windows-msvc
+          choco install protoc --no-progress -y
+          $llvmBin = 'C:\Program Files\LLVM\bin'
+          $llvmLib = Join-Path $llvmBin 'libclang.dll'
+          if (-not (Test-Path -LiteralPath $llvmLib)) {
+            throw "libclang.dll was not found at $llvmLib"
+          }
+          "LIBCLANG_PATH=$llvmBin" >> $env:GITHUB_ENV
+
+      - name: Build release GUI
+        shell: pwsh
+        env:
+          CARGO_BUILD_JOBS: "2"
+          CARGO_BIN_NAME: oss
+          CARGO_FULL_PROFILE: release
+          WARP_APP_NAME: WarpOss
+        run: |
+          cargo build `
+            -p warp `
+            --release `
+            --bin warp-oss `
+            --target x86_64-pc-windows-msvc `
+            --features release_bundle,gui,nld_classifier_v3,nld_heuristic_v2
+
+      - name: Package Windows GUI
+        shell: pwsh
+        run: |
+          $stage = Join-Path $env:RUNNER_TEMP 'WarpOss-windows-x64'
+          $output = Join-Path $env:GITHUB_WORKSPACE 'dist'
+          New-Item -ItemType Directory -Path $stage -Force | Out-Null
+          New-Item -ItemType Directory -Path $output -Force | Out-Null
+
+          Copy-Item 'target\x86_64-pc-windows-msvc\release\warp-oss.exe' $stage
+          foreach ($file in @(
+            'conpty.dll',
+            'dxcompiler.dll',
+            'dxil.dll',
+            'msvcp140.dll',
+            'vcruntime140.dll',
+            'vcruntime140_1.dll'
+          )) {
+            Copy-Item (Join-Path 'app\assets\windows\x64' $file) $stage
+          }
+          New-Item -ItemType Directory -Path (Join-Path $stage 'x64') -Force | Out-Null
+          New-Item -ItemType Directory -Path (Join-Path $stage 'resources') -Force | Out-Null
+          Copy-Item 'app\assets\windows\x64\OpenConsole.exe' (Join-Path $stage 'x64')
+          Copy-Item 'resources\bundled' (Join-Path $stage 'resources\bundled') -Recurse
+          Copy-Item 'LICENSE' $stage
+          Copy-Item 'app\assets\windows\LICENSE-DXC' $stage
+          Copy-Item 'app\assets\windows\LICENSE-WINDOWS-TERMINAL' $stage
+
+          $archive = Join-Path $output 'WarpOss-windows-x64-unsigned.zip'
+          Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $archive -CompressionLevel Optimal
+          Get-FileHash -Algorithm SHA256 $archive | Format-List
+
+      - name: Upload Windows package
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: WarpOss-windows-x64-unsigned
+          path: dist/WarpOss-windows-x64-unsigned.zip
+          if-no-files-found: error
+          retention-days: 30
+
+  macos-arm64:
+    name: macOS ARM64 GUI
+    runs-on: macos-14
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          lfs: true
+
+      - name: Configure build tools
+        shell: bash
+        run: |
+          rustup show active-toolchain
+          rustup target add aarch64-apple-darwin
+          HOMEBREW_NO_AUTO_UPDATE=1 brew install protobuf
+          xcodebuild -downloadComponent MetalToolchain
+          ./script/install_cargo_bundle
+
+      - name: Build release app bundle
+        shell: bash
+        env:
+          CARGO_BUILD_JOBS: "2"
+          CARGO_BIN_NAME: oss
+          CARGO_FULL_PROFILE: release
+          MACOSX_DEPLOYMENT_TARGET: "10.14"
+          WARP_APP_NAME: WarpOss
+        run: |
+          cd app
+          cargo bundle \
+            --profile release \
+            --bin warp-oss \
+            --target aarch64-apple-darwin \
+            --features release_bundle,extern_plist,gui,nld_classifier_v3,nld_heuristic_v2
+
+      - name: Package macOS ARM64 GUI
+        shell: bash
+        env:
+          NO_LICENSES: "1"
+          SKIP_SETTINGS_SCHEMA: "1"
+        run: |
+          app_bundle="target/aarch64-apple-darwin/release/bundle/osx/WarpOss.app"
+          plugin="target/release/WarpDockTilePlugin.docktileplugin"
+          resources="$app_bundle/Contents/Resources"
+          mkdir -p "$app_bundle/Contents/PlugIns" dist
+          cp -R "$plugin" "$app_bundle/Contents/PlugIns/"
+          plutil -insert NSDockTilePlugIn -string WarpDockTilePlugin.docktileplugin \
+            "$app_bundle/Contents/Info.plist"
+          plutil -insert MainAppBundleIdentifier -string dev.warp.WarpOss \
+            "$app_bundle/Contents/PlugIns/WarpDockTilePlugin.docktileplugin/Contents/Info.plist"
+          ./script/prepare_bundled_resources "$resources" oss
+          cp LICENSE "$resources/LICENSE"
+          /usr/bin/strip -x "$app_bundle/Contents/MacOS/warp-oss"
+          codesign --force --deep --sign - "$app_bundle"
+          lipo -archs "$app_bundle/Contents/MacOS/warp-oss" | grep -Fx arm64
+          ditto -c -k --sequesterRsrc --keepParent "$app_bundle" \
+            dist/WarpOss-macos-arm64-unsigned.zip
+          shasum -a 256 dist/WarpOss-macos-arm64-unsigned.zip
+
+      - name: Upload macOS package
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: WarpOss-macos-arm64-unsigned
+          path: dist/WarpOss-macos-arm64-unsigned.zip
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: Archive packages in GitHub Release
+    runs-on: ubuntu-latest
+    needs: [windows-x64, macos-arm64]
+    steps:
+      - name: Download packages
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: WarpOss-*-unsigned
+          path: dist
+          merge-multiple: true
+
+      - name: Create release and upload packages
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          if ! gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "Warp OSS GUI builds ($RELEASE_TAG)" \
+              --notes "Unsigned development builds of Warp OSS GUI with environment-configured OpenAI-compatible local model support. macOS is ad-hoc signed but not notarized; Windows is not Authenticode signed."
+          fi
+          sha256sum dist/*.zip
+          gh release upload "$RELEASE_TAG" dist/*.zip \
+            --repo "$GITHUB_REPOSITORY" \
+            --clobber

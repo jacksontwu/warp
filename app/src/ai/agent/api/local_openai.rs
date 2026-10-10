@@ -167,7 +167,7 @@ async fn generate_events(
 
     let mut messages = vec![json!({
         "role": "system",
-        "content": "You are a coding assistant running locally in Warp TUI. Answer directly and accurately. Warp server tools are unavailable in local mode, so do not claim to have run commands or changed files."
+        "content": "You are a coding assistant running locally in Warp. Answer directly and accurately. Warp server tools are unavailable in local mode, so do not claim to have run commands or changed files."
     })];
     append_task_history(&mut messages, &params.tasks);
     messages.extend(

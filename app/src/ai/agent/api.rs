@@ -42,7 +42,7 @@ use crate::settings::AISettings;
 use crate::terminal::safe_mode_settings::get_secret_obfuscation_mode;
 use crate::workspaces::user_workspaces::{TeamScope, UserWorkspaces};
 
-/// Whether the TUI should run without Warp authentication and send agent requests directly to an
+/// Whether Warp should run without Warp authentication and send agent requests directly to an
 /// OpenAI Chat Completions-compatible endpoint.
 pub(crate) fn local_openai_mode_enabled() -> bool {
     #[cfg(not(target_family = "wasm"))]
