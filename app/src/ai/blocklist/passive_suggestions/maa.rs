@@ -80,6 +80,11 @@ pub enum PassiveSuggestionsEvent {
     },
 }
 
+pub(super) fn should_use_maa_passive_suggestions() -> bool {
+    FeatureFlag::PromptSuggestionsViaMAA.is_enabled()
+        || crate::ai::agent::api::local_openai_mode_enabled()
+}
+
 /// Tracks an out-of-band passive suggestions request.
 struct Request {
     /// Conversation ID for the passive suggestion request.
@@ -381,7 +386,7 @@ impl PassiveSuggestionsModel {
                 self.abort_pending_requests(ctx);
             }
             ModelEvent::AfterBlockCompleted(after_block_completed_event) => {
-                if !FeatureFlag::PromptSuggestionsViaMAA.is_enabled() {
+                if !should_use_maa_passive_suggestions() {
                     self.abort_pending_requests(ctx);
                     return;
                 }

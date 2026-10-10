@@ -163,7 +163,7 @@ impl PassiveSuggestionsModel {
                 self.abort_pending_requests(ctx);
             }
             ModelEvent::AfterBlockCompleted(after_block_completed_event) => {
-                if FeatureFlag::PromptSuggestionsViaMAA.is_enabled() {
+                if super::maa::should_use_maa_passive_suggestions() {
                     self.abort_pending_requests(ctx);
                     return;
                 }
